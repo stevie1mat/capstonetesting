@@ -6,7 +6,7 @@ export default function HomePage() {
   const [message, setMessage] = useState('');
 
   useEffect(() => {
-    fetch('http://users-api:8080/hello')
+    fetch('http://trademinutes-users-api:8080/hello')
       .then((res) => res.json())
       .then((data) => setMessage(data.message))
       .catch(() => setMessage('Failed to fetch'));
