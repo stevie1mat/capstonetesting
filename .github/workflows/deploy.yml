@@ -1,0 +1,48 @@
+name: Build and Deploy to Azure Container Apps
+
+on:
+  push:
+    branches: [main]
+
+env:
+  ACR_NAME: ${{ secrets.ACR_NAME }}
+  RESOURCE_GROUP: ${{ secrets.RESOURCE_GROUP }}
+  CONTAINERAPP_ENV: ${{ secrets.CONTAINERAPP_ENV }}
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@v3
+
+      - name: Azure Login
+        uses: azure/login@v1
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Login to ACR
+        run: az acr login --name $ACR_NAME
+
+      - name: Build and Push Frontend
+        run: |
+          docker build -t $ACR_NAME.azurecr.io/frontend ./frontend
+          docker push $ACR_NAME.azurecr.io/frontend
+
+      - name: Build and Push Users API
+        run: |
+          docker build -t $ACR_NAME.azurecr.io/users-api ./users-api
+          docker push $ACR_NAME.azurecr.io/users-api
+
+      - name: Deploy to Azure Container Apps
+        run: |
+          az containerapp update --name trademinutes-frontend \
+            --resource-group $RESOURCE_GROUP \
+            --image $ACR_NAME.azurecr.io/frontend
+
+          az containerapp update --name trademinutes-users-api \
+            --resource-group $RESOURCE_GROUP \
+            --image $ACR_NAME.azurecr.io/users-api
