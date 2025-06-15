@@ -40,7 +40,7 @@ jobs:
 
       - name: Build and Push Users API
         run: |
-          docker build -t $ACR_NAME.azurecr.io/users-api ./users-api
+          docker build -t $ACR_NAME.azurecr.io/users-api ./trademinutes-auth
           docker push $ACR_NAME.azurecr.io/users-api
 
       - name: Deploy to Azure Container Apps
