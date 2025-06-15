@@ -9,139 +9,107 @@ permissions:
   contents: read
 
 env:
-  ACR_NAME: trademinutesacr
-  RESOURCE_GROUP: TradeMinutes-RG1
-  CONTAINERAPP_ENV: trademinutes-env
+  RG_NAME: TradeMinutes-RG2
   LOCATION: eastus
-  FRONTEND_APP_NAME: trademinutes-frontend
+  ACR_NAME: trademinutesacr2
+  CONTAINERAPP_ENV: trademinutes-env2
   BACKEND_APP_NAME: trademinutes-users-api
+  FRONTEND_APP_NAME: trademinutes-frontend
 
 jobs:
-  build-and-deploy:
+  deploy:
     runs-on: ubuntu-latest
-
     steps:
-    # ──────────────────────────────
-    # 1) Checkout & Azure Login
-    # ──────────────────────────────
-    - name: Checkout code
+    - name: Checkout
       uses: actions/checkout@v3
 
-    - name: Azure login with OIDC
+    - name: Azure Login
       uses: azure/login@v1
       with:
         client-id:       ${{ secrets.AZURE_CLIENT_ID }}
         tenant-id:       ${{ secrets.AZURE_TENANT_ID }}
         subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
-    # ──────────────────────────────
-    # 2) Ensure Infra Exists
-    # ──────────────────────────────
-    - name: Ensure Resource Group and Container App Environment exist
-      shell: bash
+    - name: Ensure Resource Group exists
       run: |
-        echo "📁 Checking if resource group exists..."
-        if ! az group show --name $RESOURCE_GROUP &>/dev/null; then
-          echo "📦 Creating resource group: $RESOURCE_GROUP"
-          az group create --name $RESOURCE_GROUP --location $LOCATION
-        else
-          echo "✅ Resource group exists."
-        fi
+        az group show --name $RG_NAME || az group create --name $RG_NAME --location $LOCATION
 
-        echo "🌍 Checking if container app environment exists..."
-        if ! az containerapp env show \
-             --name $CONTAINERAPP_ENV \
-             --resource-group $RESOURCE_GROUP &>/dev/null; then
-          echo "🌍 Creating container app environment..."
-          az containerapp env create \
-            --name $CONTAINERAPP_ENV \
-            --resource-group $RESOURCE_GROUP \
-            --location $LOCATION
-        else
-          echo "✅ Container App environment exists."
-        fi
+    - name: Create ACR if not exists
+      run: |
+        az acr show --name $ACR_NAME --resource-group $RG_NAME || \
+        az acr create --resource-group $RG_NAME --name $ACR_NAME --sku Basic --admin-enabled true
 
-    # ──────────────────────────────
-    # 3) ACR Login
-    # ──────────────────────────────
-    - name: Login to Azure Container Registry
+    - name: Create Container App Env if not exists
+      run: |
+        az containerapp env show --name $CONTAINERAPP_ENV --resource-group $RG_NAME || \
+        az containerapp env create \
+          --name $CONTAINERAPP_ENV \
+          --resource-group $RG_NAME \
+          --location $LOCATION
+
+    - name: Login to ACR
       run: az acr login --name $ACR_NAME
 
-    # ──────────────────────────────
-    # 4) Build and Deploy Backend
-    # ──────────────────────────────
-    - name: Build & Push users-api image
+    # ─── Build and Push Backend ───────────────────────────────────────────────
+    - name: Build & Push users-api
       run: |
-        docker build \
-          --platform=linux/amd64 \
-          -t $ACR_NAME.azurecr.io/users-api:${{ github.sha }} ./trademinutes-auth
+        docker build -t $ACR_NAME.azurecr.io/users-api:${{ github.sha }} ./trademinutes-auth
         docker push $ACR_NAME.azurecr.io/users-api:${{ github.sha }}
 
-    - name: Deploy users-api container app
+    - name: Deploy Backend Container App
       run: |
-        if ! az containerapp show \
-          --name $BACKEND_APP_NAME \
-          --resource-group $RESOURCE_GROUP &>/dev/null; then
-          echo "🚀 Creating backend app (first run)…"
+        if az containerapp show --name $BACKEND_APP_NAME --resource-group $RG_NAME; then
+          az containerapp update \
+            --name $BACKEND_APP_NAME \
+            --resource-group $RG_NAME \
+            --image $ACR_NAME.azurecr.io/users-api:${{ github.sha }}
+        else
           az containerapp create \
             --name $BACKEND_APP_NAME \
-            --resource-group $RESOURCE_GROUP \
+            --resource-group $RG_NAME \
             --environment $CONTAINERAPP_ENV \
             --image $ACR_NAME.azurecr.io/users-api:${{ github.sha }} \
             --target-port 8080 \
-            --ingress internal
-        else
-          echo "🔁 Updating backend app image..."
-          az containerapp update \
-            --name $BACKEND_APP_NAME \
-            --resource-group $RESOURCE_GROUP \
-            --image $ACR_NAME.azurecr.io/users-api:${{ github.sha }}
+            --ingress external \
+            --registry-server $ACR_NAME.azurecr.io
         fi
 
-    # ──────────────────────────────
-    # 5) Get Backend FQDN
-    # ──────────────────────────────
-    - name: Get backend FQDN for frontend
+    # ─── Fetch Backend URL for Frontend ───────────────────────────────────────
+    - name: Get backend URL
       id: backend
       run: |
-        FQDN=$(az containerapp show \
+        BACKEND_URL=$(az containerapp show \
           --name $BACKEND_APP_NAME \
-          --resource-group $RESOURCE_GROUP \
-          --query properties.configuration.ingress.fqdn \
-          -o tsv)
-        echo "API_URL=https://$FQDN" >> $GITHUB_ENV
-        echo "::notice title=API URL::https://$FQDN"
+          --resource-group $RG_NAME \
+          --query properties.configuration.ingress.fqdn -o tsv)
+        echo "API_URL=https://$BACKEND_URL" >> $GITHUB_ENV
+        echo "::notice title=Backend URL::https://$BACKEND_URL"
 
-    # ──────────────────────────────
-    # 6) Build and Deploy Frontend
-    # ──────────────────────────────
-    - name: Build & Push frontend image
+    # ─── Build and Push Frontend ──────────────────────────────────────────────
+    - name: Build & Push frontend
       run: |
         docker build \
-          --platform=linux/amd64 \
           --build-arg NEXT_PUBLIC_API_URL=${{ env.API_URL }} \
           -t $ACR_NAME.azurecr.io/frontend:${{ github.sha }} ./trademinutes-frontend
         docker push $ACR_NAME.azurecr.io/frontend:${{ github.sha }}
 
-    - name: Deploy frontend container app
+    # ─── Deploy Frontend Container App ────────────────────────────────────────
+    - name: Deploy Frontend Container App
       run: |
-        if ! az containerapp show \
-          --name $FRONTEND_APP_NAME \
-          --resource-group $RESOURCE_GROUP &>/dev/null; then
-          echo "🚀 Creating frontend app (first run)…"
+        if az containerapp show --name $FRONTEND_APP_NAME --resource-group $RG_NAME; then
+          az containerapp update \
+            --name $FRONTEND_APP_NAME \
+            --resource-group $RG_NAME \
+            --image $ACR_NAME.azurecr.io/frontend:${{ github.sha }} \
+            --set-env-vars NEXT_PUBLIC_API_URL=${{ env.API_URL }}
+        else
           az containerapp create \
             --name $FRONTEND_APP_NAME \
-            --resource-group $RESOURCE_GROUP \
+            --resource-group $RG_NAME \
             --environment $CONTAINERAPP_ENV \
             --image $ACR_NAME.azurecr.io/frontend:${{ github.sha }} \
             --target-port 3000 \
             --ingress external \
+            --registry-server $ACR_NAME.azurecr.io \
             --env-vars NEXT_PUBLIC_API_URL=${{ env.API_URL }}
-        else
-          echo "🔁 Updating frontend app image..."
-          az containerapp update \
-            --name $FRONTEND_APP_NAME \
-            --resource-group $RESOURCE_GROUP \
-            --image $ACR_NAME.azurecr.io/frontend:${{ github.sha }} \
-            --set-env-vars NEXT_PUBLIC_API_URL=${{ env.API_URL }}
         fi
