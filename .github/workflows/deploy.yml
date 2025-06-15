@@ -56,14 +56,30 @@ jobs:
         docker build -t $ACR_NAME.azurecr.io/users-api:${{ github.sha }} ./trademinutes-auth
         docker push $ACR_NAME.azurecr.io/users-api:${{ github.sha }}
 
-    - name: Deploy Backend Container App
+    - name: Deploy or Update Backend App
       run: |
-        if az containerapp show --name $BACKEND_APP_NAME --resource-group $RG_NAME; then
+        if az containerapp show --name $BACKEND_APP_NAME --resource-group $RG_NAME >/dev/null 2>&1; then
+          echo "🔁 Backend exists. Updating..."
           az containerapp update \
             --name $BACKEND_APP_NAME \
             --resource-group $RG_NAME \
             --image $ACR_NAME.azurecr.io/users-api:${{ github.sha }}
+
+          INGRESS_TYPE=$(az containerapp show \
+            --name $BACKEND_APP_NAME \
+            --resource-group $RG_NAME \
+            --query properties.configuration.ingress.external \
+            -o tsv)
+
+          if [ "$INGRESS_TYPE" != "true" ]; then
+            echo "⚙️ Setting ingress to external for backend..."
+            az containerapp ingress enable \
+              --name $BACKEND_APP_NAME \
+              --resource-group $RG_NAME \
+              --type external
+          fi
         else
+          echo "🚀 Creating backend app..."
           az containerapp create \
             --name $BACKEND_APP_NAME \
             --resource-group $RG_NAME \
@@ -83,7 +99,7 @@ jobs:
           --resource-group $RG_NAME \
           --query properties.configuration.ingress.fqdn -o tsv)
         echo "API_URL=https://$BACKEND_URL" >> $GITHUB_ENV
-        echo "::notice title=Backend URL::https://$BACKEND_URL"
+        echo "::notice title=Backend API URL::https://$BACKEND_URL"
 
     # ─── Build and Push Frontend ──────────────────────────────────────────────
     - name: Build & Push frontend
@@ -96,13 +112,15 @@ jobs:
     # ─── Deploy Frontend Container App ────────────────────────────────────────
     - name: Deploy Frontend Container App
       run: |
-        if az containerapp show --name $FRONTEND_APP_NAME --resource-group $RG_NAME; then
+        if az containerapp show --name $FRONTEND_APP_NAME --resource-group $RG_NAME >/dev/null 2>&1; then
+          echo "🔁 Frontend exists. Updating..."
           az containerapp update \
             --name $FRONTEND_APP_NAME \
             --resource-group $RG_NAME \
             --image $ACR_NAME.azurecr.io/frontend:${{ github.sha }} \
             --set-env-vars NEXT_PUBLIC_API_URL=${{ env.API_URL }}
         else
+          echo "🚀 Creating frontend app..."
           az containerapp create \
             --name $FRONTEND_APP_NAME \
             --resource-group $RG_NAME \
