@@ -19,7 +19,7 @@ jobs:
 
     steps:
     # ──────────────────────────────
-    # 1) Checkout & Azure login
+    # 1) Checkout & Azure
     # ──────────────────────────────
     - name: Checkout
       uses: actions/checkout@v3
