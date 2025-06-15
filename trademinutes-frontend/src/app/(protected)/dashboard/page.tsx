@@ -94,7 +94,7 @@ export default function ProfileDashboardPage() {
 });
 
 const API_BASE =
-  process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8081/api/profile";
+  process.env.NEXT_PUBLIC_API_BASE || "https://trademinutes-auth.onrender.com/api/profile";
 
 const updateProfile = async () => {
   const token = localStorage.getItem("token");
