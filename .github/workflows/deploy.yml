@@ -91,16 +91,16 @@ jobs:
             --registry-server $ACR_NAME.azurecr.io \
             --env-vars \
               PORT=8080 \
-              MONGO_URI=secretref:MONGO_URI \
-              DB_NAME=secretref:DB_NAME \
-              JWT_SECRET=secretref:JWT_SECRET \
-              JWT_RESET_SECRET=secretref:JWT_RESET_SECRET \
-              SMTP_HOST=secretref:SMTP_HOST \
-              SMTP_PORT=secretref:SMTP_PORT \
-              SMTP_USER=secretref:SMTP_USER \
-              SMTP_PASS=secretref:SMTP_PASS \
-              EMAIL_FROM=secretref:EMAIL_FROM \
-              FRONTEND_URL=secretref:FRONTEND_URL
+              MONGO_URI=secretref:mongo-uri \
+              DB_NAME=secretref:db-name \
+              JWT_SECRET=secretref:jwt-secret \
+              JWT_RESET_SECRET=secretref:jwt-reset-secret \
+              SMTP_HOST=secretref:smtp-host \
+              SMTP_PORT=secretref:smtp-port \
+              SMTP_USER=secretref:smtp-user \
+              SMTP_PASS=secretref:smtp-pass \
+              EMAIL_FROM=secretref:email-from \
+              FRONTEND_URL=secretref:frontend-url
         fi
 
     # ─── Push Secrets to Azure Container App ──────────────────────────────────
@@ -110,16 +110,16 @@ jobs:
           --name $BACKEND_APP_NAME \
           --resource-group $RG_NAME \
           --secrets \
-            MONGO_URI='${{ secrets.MONGO_URI }}' \
-            DB_NAME='${{ secrets.DB_NAME }}' \
-            JWT_SECRET='${{ secrets.JWT_SECRET }}' \
-            JWT_RESET_SECRET='${{ secrets.JWT_RESET_SECRET }}' \
-            SMTP_HOST='${{ secrets.SMTP_HOST }}' \
-            SMTP_PORT='${{ secrets.SMTP_PORT }}' \
-            SMTP_USER='${{ secrets.SMTP_USER }}' \
-            SMTP_PASS='${{ secrets.SMTP_PASS }}' \
-            EMAIL_FROM='${{ secrets.EMAIL_FROM }}' \
-            FRONTEND_URL='${{ secrets.FRONTEND_URL }}'
+            mongo-uri='${{ secrets.MONGO_URI }}' \
+            db-name='${{ secrets.DB_NAME }}' \
+            jwt-secret='${{ secrets.JWT_SECRET }}' \
+            jwt-reset-secret='${{ secrets.JWT_RESET_SECRET }}' \
+            smtp-host='${{ secrets.SMTP_HOST }}' \
+            smtp-port='${{ secrets.SMTP_PORT }}' \
+            smtp-user='${{ secrets.SMTP_USER }}' \
+            smtp-pass='${{ secrets.SMTP_PASS }}' \
+            email-from='${{ secrets.EMAIL_FROM }}' \
+            frontend-url='${{ secrets.FRONTEND_URL }}'
 
     # ─── Link ENV Vars to Secrets using secretref ─────────────────────────────
     - name: Inject secret-based env vars into backend
@@ -129,16 +129,16 @@ jobs:
           --resource-group $RG_NAME \
           --set-env-vars \
             PORT=8080 \
-            MONGO_URI=secretref:MONGO_URI \
-            DB_NAME=secretref:DB_NAME \
-            JWT_SECRET=secretref:JWT_SECRET \
-            JWT_RESET_SECRET=secretref:JWT_RESET_SECRET \
-            SMTP_HOST=secretref:SMTP_HOST \
-            SMTP_PORT=secretref:SMTP_PORT \
-            SMTP_USER=secretref:SMTP_USER \
-            SMTP_PASS=secretref:SMTP_PASS \
-            EMAIL_FROM=secretref:EMAIL_FROM \
-            FRONTEND_URL=secretref:FRONTEND_URL
+            MONGO_URI=secretref:mongo-uri \
+            DB_NAME=secretref:db-name \
+            JWT_SECRET=secretref:jwt-secret \
+            JWT_RESET_SECRET=secretref:jwt-reset-secret \
+            SMTP_HOST=secretref:smtp-host \
+            SMTP_PORT=secretref:smtp-port \
+            SMTP_USER=secretref:smtp-user \
+            SMTP_PASS=secretref:smtp-pass \
+            EMAIL_FROM=secretref:email-from \
+            FRONTEND_URL=secretref:frontend-url
 
     # ─── Fetch Backend URL for Frontend ───────────────────────────────────────
     - name: Get backend URL
