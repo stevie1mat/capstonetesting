@@ -5,13 +5,13 @@ on:
     branches: [main]
 
 permissions:
-  id-token: write      # for OIDC login
+  id-token: write
   contents: read
 
 env:
-  ACR_NAME:          ${{ secrets.ACR_NAME }}
-  RESOURCE_GROUP:    ${{ secrets.RESOURCE_GROUP }}
-  CONTAINERAPP_ENV:  ${{ secrets.CONTAINERAPP_ENV }}
+  ACR_NAME:         ${{ secrets.ACR_NAME }}
+  RESOURCE_GROUP:   ${{ secrets.RESOURCE_GROUP }}
+  CONTAINERAPP_ENV: ${{ secrets.CONTAINERAPP_ENV }}
 
 jobs:
   build-and-deploy:
@@ -19,7 +19,7 @@ jobs:
 
     steps:
     # ──────────────────────────────
-    # Checkout & Azure login
+    # 1) Checkout & Azure login
     # ──────────────────────────────
     - name: Checkout
       uses: actions/checkout@v3
@@ -35,7 +35,7 @@ jobs:
       run: az acr login --name $ACR_NAME
 
     # ──────────────────────────────
-    # Build & push backend first
+    # 2) Build & push backend first
     # ──────────────────────────────
     - name: Build & Push users-api
       run: |
@@ -52,7 +52,7 @@ jobs:
           --image $ACR_NAME.azurecr.io/users-api:${{ github.sha }}
 
     # ──────────────────────────────
-    # Fetch backend URL for frontend
+    # 3) Fetch backend URL for frontend
     # ──────────────────────────────
     - name: Get backend FQDN
       id: backend
@@ -63,21 +63,21 @@ jobs:
           --query properties.configuration.ingress.fqdn \
           -o tsv)
         echo "API_URL=https://$URL" >> $GITHUB_ENV
-        echo "::notice title=API URL::$URL"
+        echo "::notice title=API URL::https://$URL"
 
     # ──────────────────────────────
-    # Build & push frontend with API URL
+    # 4) Build & push frontend with API URL
     # ──────────────────────────────
     - name: Build & Push frontend
       run: |
         docker build \
           --platform=linux/amd64 \
-          --build-arg NEXT_PUBLIC_API_URL=$API_URL \
+          --build-arg NEXT_PUBLIC_API_URL=${{ env.API_URL }} \
           -t $ACR_NAME.azurecr.io/frontend:${{ github.sha }} ./trademinutes-frontend
         docker push $ACR_NAME.azurecr.io/frontend:${{ github.sha }}
 
     # ──────────────────────────────
-    # Deploy frontend (and inject env-var at runtime too)
+    # 5) Deploy frontend and set env-var at runtime
     # ──────────────────────────────
     - name: Deploy frontend
       run: |
@@ -85,4 +85,4 @@ jobs:
           --name trademinutes-frontend \
           --resource-group $RESOURCE_GROUP \
           --image $ACR_NAME.azurecr.io/frontend:${{ github.sha }} \
-          --env-vars NEXT_PUBLIC_API_URL=$API_URL
+          --set-env-vars NEXT_PUBLIC_API_URL=${{ env.API_URL }}
