@@ -88,7 +88,19 @@ jobs:
             --image $ACR_NAME.azurecr.io/users-api:${{ github.sha }} \
             --target-port 8080 \
             --ingress external \
-            --registry-server $ACR_NAME.azurecr.io
+            --registry-server $ACR_NAME.azurecr.io \
+            --env-vars \
+              PORT=8080 \
+              MONGO_URI=secretref:MONGO_URI \
+              DB_NAME=secretref:DB_NAME \
+              JWT_SECRET=secretref:JWT_SECRET \
+              JWT_RESET_SECRET=secretref:JWT_RESET_SECRET \
+              SMTP_HOST=secretref:SMTP_HOST \
+              SMTP_PORT=secretref:SMTP_PORT \
+              SMTP_USER=secretref:SMTP_USER \
+              SMTP_PASS=secretref:SMTP_PASS \
+              EMAIL_FROM=secretref:EMAIL_FROM \
+              FRONTEND_URL=secretref:FRONTEND_URL
         fi
 
     # ─── Push Secrets to Azure Container App ──────────────────────────────────
