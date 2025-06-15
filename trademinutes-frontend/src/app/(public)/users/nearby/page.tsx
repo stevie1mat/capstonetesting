@@ -3,11 +3,10 @@
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import CategoryTabsWithBreadcrumb from '@/components/CategoriesWithBreadcrumbs';
-import CategoriesGrid from '@/components/CategoriesGrid';
 import TradeMinutesActionSteps from '@/components/ActionSteps';
-import UsersBanner from '@/components/UsersBanner';
-import UserGrid from '@/components/UserGrid';
-import MapUsers from '@/components/UsersNearby';
+import dynamic from 'next/dynamic';
+
+const MapUsers = dynamic(() => import('@/components/UsersNearby'), { ssr: false });
 import ServiceFilters from '@/components/ServiceFilters';
 import UsersNearbyBanner from '@/components/UsersNearbyBanner';
 
