@@ -1,54 +1,88 @@
-name: Build and Deploy to Azure Container Apps
-
-#Test 3
+name: Build & Deploy to Azure Container Apps
 
 on:
   push:
     branches: [main]
 
 permissions:
-  id-token: write
+  id-token: write      # for OIDC login
   contents: read
 
 env:
-  ACR_NAME: ${{ secrets.ACR_NAME }}
-  RESOURCE_GROUP: ${{ secrets.RESOURCE_GROUP }}
-  CONTAINERAPP_ENV: ${{ secrets.CONTAINERAPP_ENV }}
+  ACR_NAME:          ${{ secrets.ACR_NAME }}
+  RESOURCE_GROUP:    ${{ secrets.RESOURCE_GROUP }}
+  CONTAINERAPP_ENV:  ${{ secrets.CONTAINERAPP_ENV }}
 
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout source code
-        uses: actions/checkout@v3
+    # ──────────────────────────────
+    # Checkout & Azure login
+    # ──────────────────────────────
+    - name: Checkout
+      uses: actions/checkout@v3
 
-      - name: Azure Login
-        uses: azure/login@v1
-        with:
-          client-id: ${{ secrets.AZURE_CLIENT_ID }}
-          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+    - name: Azure login (OIDC)
+      uses: azure/login@v1
+      with:
+        client-id:       ${{ secrets.AZURE_CLIENT_ID }}
+        tenant-id:       ${{ secrets.AZURE_TENANT_ID }}
+        subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
-      - name: Login to ACR
-        run: az acr login --name $ACR_NAME
+    - name: Login to ACR
+      run: az acr login --name $ACR_NAME
 
-      - name: Build and Push Frontend
-        run: |
-          docker build -t $ACR_NAME.azurecr.io/frontend ./trademinutes-frontend
-          docker push $ACR_NAME.azurecr.io/frontend
+    # ──────────────────────────────
+    # Build & push backend first
+    # ──────────────────────────────
+    - name: Build & Push users-api
+      run: |
+        docker build \
+          --platform=linux/amd64 \
+          -t $ACR_NAME.azurecr.io/users-api:${{ github.sha }} ./trademinutes-auth
+        docker push $ACR_NAME.azurecr.io/users-api:${{ github.sha }}
 
-      - name: Build and Push Users API
-        run: |
-          docker build -t $ACR_NAME.azurecr.io/users-api ./trademinutes-auth
-          docker push $ACR_NAME.azurecr.io/users-api
+    - name: Deploy users-api
+      run: |
+        az containerapp update \
+          --name trademinutes-users-api \
+          --resource-group $RESOURCE_GROUP \
+          --image $ACR_NAME.azurecr.io/users-api:${{ github.sha }}
 
-      - name: Deploy to Azure Container Apps
-        run: |
-          az containerapp update --name trademinutes-frontend \
-            --resource-group $RESOURCE_GROUP \
-            --image $ACR_NAME.azurecr.io/frontend
+    # ──────────────────────────────
+    # Fetch backend URL for frontend
+    # ──────────────────────────────
+    - name: Get backend FQDN
+      id: backend
+      run: |
+        URL=$(az containerapp show \
+          --name trademinutes-users-api \
+          --resource-group $RESOURCE_GROUP \
+          --query properties.configuration.ingress.fqdn \
+          -o tsv)
+        echo "API_URL=https://$URL" >> $GITHUB_ENV
+        echo "::notice title=API URL::$URL"
 
-          az containerapp update --name trademinutes-users-api \
-            --resource-group $RESOURCE_GROUP \
-            --image $ACR_NAME.azurecr.io/users-api
+    # ──────────────────────────────
+    # Build & push frontend with API URL
+    # ──────────────────────────────
+    - name: Build & Push frontend
+      run: |
+        docker build \
+          --platform=linux/amd64 \
+          --build-arg NEXT_PUBLIC_API_URL=$API_URL \
+          -t $ACR_NAME.azurecr.io/frontend:${{ github.sha }} ./trademinutes-frontend
+        docker push $ACR_NAME.azurecr.io/frontend:${{ github.sha }}
+
+    # ──────────────────────────────
+    # Deploy frontend (and inject env-var at runtime too)
+    # ──────────────────────────────
+    - name: Deploy frontend
+      run: |
+        az containerapp update \
+          --name trademinutes-frontend \
+          --resource-group $RESOURCE_GROUP \
+          --image $ACR_NAME.azurecr.io/frontend:${{ github.sha }} \
+          --env-vars NEXT_PUBLIC_API_URL=$API_URL
