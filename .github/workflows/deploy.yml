@@ -56,6 +56,7 @@ jobs:
         docker build -t $ACR_NAME.azurecr.io/users-api:${{ github.sha }} ./trademinutes-auth
         docker push $ACR_NAME.azurecr.io/users-api:${{ github.sha }}
 
+    # ─── Deploy or Update Backend App ─────────────────────────────────────────
     - name: Deploy or Update Backend App
       run: |
         if az containerapp show --name $BACKEND_APP_NAME --resource-group $RG_NAME >/dev/null 2>&1; then
@@ -89,6 +90,43 @@ jobs:
             --ingress external \
             --registry-server $ACR_NAME.azurecr.io
         fi
+
+    # ─── Push Secrets to Azure Container App ──────────────────────────────────
+    - name: Push secrets to Azure Container App
+      run: |
+        az containerapp secret set \
+          --name $BACKEND_APP_NAME \
+          --resource-group $RG_NAME \
+          --secrets \
+            MONGO_URI='${{ secrets.MONGO_URI }}' \
+            DB_NAME='${{ secrets.DB_NAME }}' \
+            JWT_SECRET='${{ secrets.JWT_SECRET }}' \
+            JWT_RESET_SECRET='${{ secrets.JWT_RESET_SECRET }}' \
+            SMTP_HOST='${{ secrets.SMTP_HOST }}' \
+            SMTP_PORT='${{ secrets.SMTP_PORT }}' \
+            SMTP_USER='${{ secrets.SMTP_USER }}' \
+            SMTP_PASS='${{ secrets.SMTP_PASS }}' \
+            EMAIL_FROM='${{ secrets.EMAIL_FROM }}' \
+            FRONTEND_URL='${{ secrets.FRONTEND_URL }}'
+
+    # ─── Link ENV Vars to Secrets using secretref ─────────────────────────────
+    - name: Inject secret-based env vars into backend
+      run: |
+        az containerapp update \
+          --name $BACKEND_APP_NAME \
+          --resource-group $RG_NAME \
+          --set-env-vars \
+            PORT=8080 \
+            MONGO_URI=secretref:MONGO_URI \
+            DB_NAME=secretref:DB_NAME \
+            JWT_SECRET=secretref:JWT_SECRET \
+            JWT_RESET_SECRET=secretref:JWT_RESET_SECRET \
+            SMTP_HOST=secretref:SMTP_HOST \
+            SMTP_PORT=secretref:SMTP_PORT \
+            SMTP_USER=secretref:SMTP_USER \
+            SMTP_PASS=secretref:SMTP_PASS \
+            EMAIL_FROM=secretref:EMAIL_FROM \
+            FRONTEND_URL=secretref:FRONTEND_URL
 
     # ─── Fetch Backend URL for Frontend ───────────────────────────────────────
     - name: Get backend URL
