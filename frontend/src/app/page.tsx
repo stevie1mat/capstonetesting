@@ -6,7 +6,7 @@ export default function HomePage() {
   const [message, setMessage] = useState('');
 
   useEffect(() => {
-    fetch('trademinutes-users-api.politeglacier-4b6fa2ae.eastus.azurecontainerapps.io/hello')
+    fetch('https://trademinutes-users-api.politeglacier-4b6fa2ae.eastus.azurecontainerapps.io/hello')
       .then((res) => res.json())
       .then((data) => setMessage(data.message))
       .catch(() => setMessage('Failed to fetch'));
