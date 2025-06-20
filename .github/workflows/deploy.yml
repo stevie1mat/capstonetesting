@@ -9,10 +9,10 @@ permissions:
   contents: read
 
 env:
-  RG_NAME: TradeMinutes-RG3
+  RG_NAME: TradeMinutes-RG2
   LOCATION: eastus
-  ACR_NAME: trademinutesacr3
-  CONTAINERAPP_ENV: trademinutes-env3
+  ACR_NAME: trademinutesacr2
+  CONTAINERAPP_ENV: trademinutes-env2
   BACKEND_APP_NAME: trademinutes-users-api
   FRONTEND_APP_NAME: trademinutes-frontend
 
